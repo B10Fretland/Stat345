@@ -1,0 +1,237 @@
+---
+title: "Midterm-Project-(NBA-Shot-Chart)"
+author: "Brayden Fretland"
+date: "2026-04-03"
+output: html_document 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Visualizationg of Timberwolves Shot Data Over Time
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=14, fig.height=20}
+# Need message, and warning= false so the html wont include the attaching core tidyverse packages, and use fig. to help adjust size of the graphs.
+
+# Loads libraries.
+library(tidyverse) # For graphing.
+library(hoopR) # Data for NBA.
+library(sportyR) # Basketball court.
+library(gridExtra) # To combine graphs for Clutch vs. Regular portion.
+
+# Data Loading and Cleaning: 
+
+# Loads data for 2006,2016,2026 for regular data analysis, and 2024-2026 for clutch data analysis.
+seasons <- c(seq(2006,2026, by = 10), 2024:2026)
+Shots <- load_nba_pbp(seasons)
+
+# Filters to get only Timberwolves shot data.
+# Renames x and y variables to make them easier to use.
+Twolves_all <- Shots %>%
+  rename(x = coordinate_x, y = coordinate_y) %>%
+  filter(
+    shooting_play == TRUE,
+    home_team_abbrev == "MIN" |  away_team_abbrev == "MIN") %>%
+  
+# Filters out the free throws.
+  filter(!str_detect(text, regex("free throw", ignore_case=TRUE))) %>%
+  
+# Creates shot outcome column to record if the shot was made or missed.
+  mutate(
+    made_shot = case_when(
+      str_detect(text, "makes") ~ "Made",
+      str_detect(text, "misses") ~ "Missed",
+      TRUE ~ NA_character_),
+    made_shot = factor(made_shot, levels = c("Made", "Missed"))) %>%
+  
+# Removes unknown outcomes.
+  filter(!is.na(made_shot))
+
+# Twolves_main is for the data analysis for the shots taken from 2006-2026.
+# Filter out the specific seasons and the variables needed to graph the data.
+# Randomly samples 5000 shots from the season to reduce over plotting.
+  Twolves_main <- Twolves_all %>%
+    filter(season %in% seq(2006,2026, by = 10)) %>%
+    select(season, x, y, made_shot) %>%
+    group_by(season) %>%
+    slice_sample(n=5000)
+  
+# Twolves_2026 is for the data analysis between clutch shots and regular shots, as it keeps the data for the 2026 shot attempts.
+# Filter out the specific season.
+# Randomly samples 5000 shots from the season to reduce over plotting.
+  Twolves_2026 <- Twolves_all %>%
+    filter(season == 2026) %>%
+    slice_sample(n=5000)
+  
+# Twolves_clutch is for the data analysis between clutch shots and regular shots, as it keeps the data for the 2024-2026 clutch shot attempts.
+# Incorporates new variables such as period, end_game_seconds_remaining, home_score, and away_score.
+# Filter out the specific seasons, and that the shot attempt is in the fourth quarter with under two minutes left, while being within a ten point game.
+  Twolves_clutch <- Twolves_all %>%
+    filter(season %in% 2024:2026,
+    period == 4,
+    end_game_seconds_remaining <= 120,
+    abs(home_score - away_score) <= 10)
+  
+# Data Visualization:
+  
+# Used to have a court as a background.
+geom_basketball(league = "NBA")+
+  
+# Plots the shot attempts on the court for Twolves_main.
+# Has the makes show up as green and a circle, and misses as blue and an X.
+# Jitter is used to spread the shot attempts out to prevent overlapping.
+  geom_point(data = Twolves_main, aes(x= x, y= y,
+        color= made_shot, shape= made_shot),
+        position = position_jitter(width=.5, height =.5),
+        alpha =.7, size=1.5) +
+  scale_color_manual(values = c("Made"="green", "Missed" = "#236192"))+
+  scale_shape_manual(values = c("Made"= 1, "Missed" = 4))+
+  
+# Shows each season on separate graphs.
+  facet_grid(season~.)+
+  
+# Graph labels to help viewers understand what is being displayed.
+# The color and shape arguments are used to assign a rename to the aes(color = made_shot, shape = made_shot) mapping in the legend.
+  labs(title="Timberwolves Shot Chart",
+       subtitle= "2006-2026 Seasons",
+       color= "Shot Result", shape= "Shot Result")+
+  
+# Makes graph look cleaner and improves readability.
+# By adjusting label sizes and creating a legend.
+# Removing axis labels, ticks, and grid lines.
+  theme_minimal()+
+  theme(legend.position="top",
+        legend.title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        plot.title = element_text(size = 24, face = "bold"),
+        plot.subtitle = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+# Additional Analysis of Clutch Shots vs Regular Shots:
+
+#Graph 1:(2026 Shots)
+
+# Used to assign graph to object to allow for grid.arrange() to be used to display graphs better in html.
+p1 <- (
+  
+# Used to have a court as a background.
+  geom_basketball(league = "NBA")+
+ 
+# Plots the shot attempts on the court for Twolves_2026.
+# Has the makes show up as green and a circle, and misses as blue and an X.
+# Jitter is used to spread the shot attempts out to prevent overlapping.
+  geom_point(data = Twolves_2026, aes(x= x, y= y,
+        color= made_shot, shape= made_shot),
+        position = position_jitter(width=.5, height =.5),
+        alpha =.7, size=1.5) +
+  scale_color_manual(values = c("Made"="green", "Missed" = "#236192"))+
+  scale_shape_manual(values = c("Made"= 1, "Missed" = 4))+
+
+# Graph labels to help viewers understand what is being displayed.
+# The color and shape arguments are used to assign a rename to the aes(color = made_shot, shape = made_shot) mapping in the legend.
+  labs(title="Timberwolves Shot Chart",
+       subtitle= "2026 Season",
+       color= "Shot Result", shape= "Shot Result")+
+  
+# Makes graph look cleaner and improves readability.
+# By adjusting label sizes and creating a legend.
+# Removing axis labels, ticks, and grid lines.
+  theme_minimal()+
+  theme(legend.position="top",
+        legend.title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        plot.title = element_text(size = 24, face = "bold"),
+        plot.subtitle = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()))
+
+#Graph 2:(2024-2026 Clutch Shots)
+
+# Used to assign graph to object to allow for grid.arrange() to be used to display graphs better in html.
+p2 <- (
+  
+# Used to have a court as a background.
+  geom_basketball(league = "NBA")+
+  
+# Plots the shot attempts on the court for Twolves_clutch.
+# Has the makes show up as green and a circle, and misses as blue and an X.
+# Jitter is used to spread the shot attempts out to prevent overlapping.
+  geom_point(data = Twolves_clutch, aes(x= x, y= y,
+        color= made_shot, shape= made_shot),
+        position = position_jitter(width=.5, height =.5),
+        alpha =2, size=3) +
+  scale_color_manual(values = c("Made"="green", "Missed" = "#236192"))+
+  scale_shape_manual(values = c("Made"= 1, "Missed" = 4))+
+  
+# Graph labels to help viewers understand what is being displayed.
+# The color and shape arguments are used to assign a rename to the aes(color = made_shot, shape = made_shot) mapping in the legend.
+  labs(title="Timberwolves Clutch Shot Chart 2024-2026 Season",
+       subtitle= "4th Quarter, Under 2 Minutes, Within 10 Points",
+       color= "Shot Result", shape= "Shot Result")+
+  
+# Makes graph look cleaner and improves readability.
+# By adjusting label sizes and creating a legend.
+# Removing axis labels, ticks, and grid lines.
+  theme_minimal()+
+  theme(legend.position="top",
+        legend.title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        plot.title = element_text(size = 24, face = "bold"),
+        plot.subtitle = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()))
+
+# Allows for the two graphs to be displayed above one another by using ncol = 1, and by assigning the two graphs to p1 and p2.
+grid.arrange(p1, p2, ncol = 1)
+
+```
+
+
+## Summary of the data visualization:
+- The graphs display how the Timberwolves have moved away from shooting mid-range shots.
+- Majority of shot attempts are located in the paint or behind the three point line.
+- Corner three pointers attempts are more efficient than any other three point locations.
+- Three point attempts are being shot from deeper distances more.
+- The data visualizations indicate that shot selection is similar, but at a lower percentage during the clutch situations.
+
+## Detailed explanation:
+
+#### Decrease in mid-range shots:
+- Visualization show dramatic decrease compared to 2006 and it steadily decreasing each year.
+- This trend reflected by the graphs show how basketball strategy has shifted throughout the years leading to more efficient shot types.
+- The percentage of making a deep two pointer is only slightly higher than the percent of making a three. This leads to a league trend of shooting less mid-range shots, and more three pointers.
+- As analytics advance the NBA has adjusted to prioritize higher expected value shots.
+
+#### Increase in three point and paint shot attemps:
+- With a decrease in mid-range attempts that leads to a larger increase in shot attempts elsewhere such as the paint or beyond the three point line.
+- An increase in paint shot attempts correlated to analytics as you shot 55-60% in the paint, and at the mid range you shot on average 45%. Both are worth two points, so teams are realizing that shooting in the paint is more effective.
+- For three pointers it follows similar analytics. The data shows there is a large similarity in shots made from the mid-range and beyond the three point line. Since the percentage of makes is similar, this leads to more three point attempts as the expected value of points increases.
+
+#### Higher efficency in the corner:
+- Although it is hard to notice in the data, corner three point attempts have a higher make rate than any other three point location. Analytics back this up as well as the average percent from the corner three is 40%, and any other three point shot is 36%.
+- Part of the reason that the corner three pointer is a shorter distance at 22 feet, whereas any other three point shot is around 23.75 feet. This is due to the NBA not wanting to adjust the court dimensions when implementing and adjusting the three point line 1979 to make every three point attempt the same distance.
+- The corner three point shot is also widely known for having a favorable shooting angle. This is due to depth perception, and the shooter being in line with the sideline and baseline.
+- The corner three pointer is considered one of the most valuable shots in the game. This is due to the players making it at a higher percent than any other three point shot, it spaces out the offense to allow for effective strategies, and has a high expected value of points for each shot attempt.
+
+#### Deeper three point attempts:
+- The graphs show how from 2006 to 2016 there has been a large increase in three pointers attempted. Another noticeable trend from 2016 to 2026 is how much deeper the average three point attempt is being taken.
+- The game of basketball will always be evolving, as many today see the three point shot being the most valuable shot in the game. With that being said more three pointers are being attempted and players are improving at shooting them, which leads to them extending their range even farther.
+- This is partially due to modern NBA influences such as Curry, who is known for shooting a lot of threes and very deep threes.
+- Although the expected value for points decreases the farther away from the basketball hoop you are, the expected value is still very high as a three pointer is more valuable than a two. A deep three point make will also lead to a lot of fan interaction and create a chaotic environment for the opposing team. 
+- Being able to shoot and make deeper threes allows for you to space out the court better for your offense and be more effective as a team.
+
+#### Clutch Shots vs. Regular Shots:
+- The clutch shot chart represents high-pressure situations where every shot matters and impacts the game as there is only two minutes left in a close game.
+- While comparing the regular shot data and clutch shot data it is noticeable that the trend is the same by sticking with only three pointers and paint shots and a limited amount of mid-range shots.
+- The graph for clutch shots show that the Timberwolves tend to not shot as well as normal as there is a larger amount of misses. This can be due to fatigue after playing all game, pressure and nerves affecting the players, and more intense defense being played.
+-  Another trend shown is an increase in the amount of three point attempts. One of the reasons for a large increase in three point attempts is due to threes being the fastest way to cut the lead while losing. 
+- Overall, the shot selection between clutch and regular situations is very similar. It shows the team still valuing the higher expected value shots, while the clutch time shooting at a slightly lower percent.
